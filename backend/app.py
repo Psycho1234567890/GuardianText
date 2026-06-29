@@ -9,21 +9,24 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 app = Flask(__name__)
 
-CORS(
-    app,
-    resources={
-        r"/*": {
-            "origins": "*"
-        }
-    }
-)
+# Enable CORS for all origins
+CORS(app, origins="*")
 
-app.config['CORS_HEADERS'] = 'Content-Type'
+# Additional headers for browser preflight requests
+@app.after_request
+def after_request(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+    return response
 
+
+# Load model
 model = tf.keras.models.load_model(
     "simple_rnn_model.h5"
 )
 
+# Load tokenizer
 with open("tokenizer.pkl", "rb") as f:
     tokenizer = pickle.load(f)
 
@@ -56,7 +59,6 @@ def generate_text(seed_text, next_words=20, temperature=0.8):
         ) / temperature
 
         prediction = np.exp(prediction)
-
         prediction = prediction / np.sum(prediction)
 
         predicted_id = np.random.choice(
@@ -79,37 +81,58 @@ def generate_text(seed_text, next_words=20, temperature=0.8):
     return result
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return jsonify({
         "message": "Neural Muse API Running"
     })
 
 
+# Handle browser preflight request
+@app.route("/generate", methods=["OPTIONS"])
+def options_generate():
+    return jsonify({"message": "OK"}), 200
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
+    try:
+        data = request.get_json()
 
-    data = request.get_json()
+        if not data:
+            return jsonify({
+                "error": "No JSON data received"
+            }), 400
 
-    seed_text = data.get("text", "")
-    temperature = float(
-        data.get("temperature", 0.8)
-    )
+        seed_text = data.get("text", "")
+        temperature = float(
+            data.get("temperature", 0.8)
+        )
 
-    word_count = int(
-        data.get("word_count", 20)
-    )
+        word_count = int(
+            data.get("word_count", 20)
+        )
 
-    output = generate_text(
-        seed_text,
-        word_count,
-        temperature
-    )
+        output = generate_text(
+            seed_text,
+            word_count,
+            temperature
+        )
 
-    return jsonify({
-        "generated_text": output
-    })
+        return jsonify({
+            "generated_text": output
+        })
+
+    except Exception as e:
+        print("ERROR:", str(e))
+
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(
+        host="0.0.0.0",
+        port=5000
+    )
