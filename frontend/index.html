@@ -1,920 +1,919 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Neural Muse — RNN Text Generator</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Guardian Text — Psycho Mods</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#04040c;
+  --glass-1:rgba(255,255,255,0.03);
+  --glass-2:rgba(255,255,255,0.06);
+  --glass-3:rgba(255,255,255,0.10);
+  --glass-border:rgba(255,255,255,0.08);
+  --glass-border-hover:rgba(255,255,255,0.18);
+  --accent:#8b5cf6;
+  --accent-2:#06b6d4;
+  --accent-3:#ec4899;
+  --accent-4:#10b981;
+  --glow-1:rgba(139,92,246,0.18);
+  --glow-2:rgba(6,182,212,0.12);
+  --glow-3:rgba(236,72,153,0.10);
+  --text-1:#f8f8ff;
+  --text-2:rgba(248,248,255,0.55);
+  --text-3:rgba(248,248,255,0.28);
+  --mono:'JetBrains Mono','Fira Mono',monospace;
+}
+body{
+  font-family:'Inter','Segoe UI',sans-serif;
+  background:var(--bg);
+  min-height:100vh;
+  color:var(--text-1);
+  overflow-x:hidden;
+  padding:0;
+}
 
-    :root {
-      --bg: #080810;
-      --surface: #0f0f1a;
-      --surface-2: #161624;
-      --surface-3: #1e1e30;
-      --border: rgba(255,255,255,0.06);
-      --border-hover: rgba(255,255,255,0.12);
-      --accent: #7c5cfc;
-      --accent-dim: rgba(124,92,252,0.15);
-      --accent-glow: rgba(124,92,252,0.35);
-      --text-1: #f0efff;
-      --text-2: rgba(240,239,255,0.55);
-      --text-3: rgba(240,239,255,0.25);
-      --cyan: #22d3ee;
-      --pink: #f472b6;
-      --green: #34d399;
-      --danger: #f87171;
-      --warn: #fbbf24;
-      --mono: 'JetBrains Mono', monospace;
-    }
+/* ambient background */
+.ambient{
+  position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;
+}
+.orb{
+  position:absolute;border-radius:50%;filter:blur(80px);
+  animation:float 12s ease-in-out infinite;
+}
+.orb-1{width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.20),transparent 70%);top:-120px;left:-100px;animation-delay:0s;}
+.orb-2{width:400px;height:400px;background:radial-gradient(circle,rgba(6,182,212,0.15),transparent 70%);top:30%;right:-80px;animation-delay:4s;}
+.orb-3{width:350px;height:350px;background:radial-gradient(circle,rgba(236,72,153,0.12),transparent 70%);bottom:-80px;left:30%;animation-delay:8s;}
+@keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-30px) scale(1.04)}}
 
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
-      color: var(--text-1);
-    }
+/* grid lines */
+.grid-bg{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(139,92,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(139,92,246,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+}
 
-    /* --- subtle grid backdrop --- */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(124,92,252,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(124,92,252,0.04) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-      z-index: 0;
-    }
-    body::after {
-      content: '';
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent), var(--cyan), var(--pink), transparent);
-      z-index: 10;
-    }
+/* top accent line */
+.top-line{
+  position:fixed;top:0;left:0;right:0;height:1px;z-index:100;
+  background:linear-gradient(90deg,transparent 0%,var(--accent) 20%,var(--accent-2) 50%,var(--accent-3) 80%,transparent 100%);
+}
 
-    /* === Layout === */
-    .wrap {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 720px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
+/* wrap */
+.app{
+  position:relative;z-index:1;
+  max-width:900px;margin:0 auto;
+  padding:28px 20px 40px;
+  display:flex;flex-direction:column;gap:16px;
+}
 
-    /* === Header === */
-    .header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      margin-bottom: 32px;
-      padding: 0 4px;
-    }
-    .header-left { display: flex; flex-direction: column; gap: 4px; }
-    .wordmark {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .logo-mark {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      background: var(--accent-dim);
-      border: 1px solid rgba(124,92,252,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .logo-mark::before {
-      content: '';
-      position: absolute;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: transparent;
-      border: 2px solid var(--accent);
-      top: 50%; left: 50%;
-      transform: translate(-50%,-50%);
-    }
-    .logo-mark::after {
-      content: '';
-      position: absolute;
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--cyan);
-      top: 50%; left: 50%;
-      transform: translate(-50%,-50%);
-    }
-    .wordmark h1 {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.4px;
-      color: var(--text-1);
-    }
-    .tagline {
-      font-size: 12.5px;
-      color: var(--text-3);
-      font-weight: 400;
-      letter-spacing: 0.2px;
-      padding-left: 46px;
-    }
-    .badge-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .badge {
-      font-size: 11px;
-      font-family: var(--mono);
-      font-weight: 500;
-      padding: 3px 8px;
-      border-radius: 20px;
-      letter-spacing: 0.3px;
-    }
-    .badge-model {
-      background: rgba(124,92,252,0.12);
-      color: var(--accent);
-      border: 1px solid rgba(124,92,252,0.2);
-    }
-    .badge-rnn {
-      background: rgba(34,211,238,0.08);
-      color: var(--cyan);
-      border: 1px solid rgba(34,211,238,0.15);
-    }
+/* header */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 4px;
+  margin-bottom:4px;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{
+  width:42px;height:42px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(139,92,246,0.3),rgba(6,182,212,0.2));
+  border:1px solid rgba(139,92,246,0.3);
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(20px);
+  position:relative;overflow:hidden;
+}
+.brand-icon::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.08),transparent);
+}
+.brand-icon svg{width:22px;height:22px;position:relative;z-index:1;}
+.brand-text h1{font-size:18px;font-weight:700;letter-spacing:-0.3px;color:var(--text-1);}
+.brand-text p{font-size:11.5px;color:var(--text-3);margin-top:1px;letter-spacing:0.3px;}
+.hdr-badges{display:flex;gap:6px;}
+.hdr-badge{
+  font-size:10.5px;font-family:var(--mono);font-weight:500;
+  padding:3px 9px;border-radius:20px;letter-spacing:0.3px;
+}
+.b-purple{background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.22);}
+.b-cyan{background:rgba(6,182,212,0.10);color:#22d3ee;border:1px solid rgba(6,182,212,0.18);}
+.b-live{
+  background:rgba(16,185,129,0.10);color:#34d399;border:1px solid rgba(16,185,129,0.18);
+  display:flex;align-items:center;gap:5px;
+}
+.live-dot{width:5px;height:5px;border-radius:50%;background:#34d399;animation:pulse-g 2s ease-in-out infinite;}
+@keyframes pulse-g{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,0.4)}50%{opacity:0.7;box-shadow:0 0 0 4px rgba(52,211,153,0)}}
 
-    /* === Main Panel === */
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
-    }
+/* glass card mixin */
+.gc{
+  background:var(--glass-1);
+  border:1px solid var(--glass-border);
+  border-radius:20px;
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  position:relative;overflow:hidden;
+  transition:border-color 0.25s,box-shadow 0.25s;
+}
+.gc::before{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);
+  pointer-events:none;
+}
+.gc:hover{border-color:var(--glass-border-hover);}
 
-    /* === Seed Section === */
-    .section {
-      padding: 24px 28px;
-      border-bottom: 1px solid var(--border);
-    }
-    .section:last-child { border-bottom: none; }
+/* === BENTO GRID === */
+.bento{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:auto;
+  gap:12px;
+}
 
-    .section-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .section-label span {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.4px;
-      color: var(--text-3);
-    }
-    .char-count {
-      font-size: 11.5px;
-      font-family: var(--mono);
-      font-weight: 400;
-      color: var(--text-3);
-      transition: color 0.2s ease;
-    }
-    .char-count.warn { color: var(--warn); }
-    .char-count.danger { color: var(--danger); }
+/* seed card — spans 2 cols */
+.cell-seed{grid-column:1/3;grid-row:1;}
+/* preset card */
+.cell-preset{grid-column:3/4;grid-row:1;}
+/* controls card */
+.cell-controls{grid-column:1/2;grid-row:2;}
+/* stats card */
+.cell-stats{grid-column:2/3;grid-row:2;}
+/* mode card */
+.cell-mode{grid-column:3/4;grid-row:2;}
+/* output card — full width */
+.cell-output{grid-column:1/4;grid-row:3;}
+/* history card */
+.cell-history{grid-column:1/4;grid-row:4;display:none;}
+.cell-history.visible{display:block;}
 
-    textarea {
-      width: 100%;
-      background: transparent;
-      border: none;
-      outline: none;
-      font-family: 'Inter', sans-serif;
-      font-size: 17px;
-      font-weight: 400;
-      line-height: 1.65;
-      color: var(--text-1);
-      resize: none;
-      min-height: 72px;
-      max-height: 160px;
-      caret-color: var(--accent);
-    }
-    textarea::placeholder {
-      color: var(--text-3);
-      font-weight: 300;
-    }
+/* card sections */
+.card-pad{padding:20px 22px;}
+.card-label{
+  font-size:10.5px;font-weight:600;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--text-3);
+  display:flex;align-items:center;gap:7px;margin-bottom:14px;
+}
+.card-label .licon{
+  width:16px;height:16px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;font-size:9px;
+}
+.licon-purple{background:rgba(139,92,246,0.20);color:#a78bfa;}
+.licon-cyan{background:rgba(6,182,212,0.15);color:#22d3ee;}
+.licon-pink{background:rgba(236,72,153,0.15);color:#f472b6;}
+.licon-green{background:rgba(16,185,129,0.15);color:#34d399;}
+.licon-amber{background:rgba(251,191,36,0.15);color:#fbbf24;}
 
-    /* === Controls Section === */
-    .controls-section {
-      padding: 20px 28px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      background: var(--surface-2);
-    }
+/* seed textarea */
+.seed-area{
+  width:100%;background:transparent;border:none;outline:none;
+  font-family:'Inter',sans-serif;font-size:17px;font-weight:400;
+  line-height:1.7;color:var(--text-1);resize:none;
+  min-height:68px;max-height:140px;
+  caret-color:var(--accent);
+}
+.seed-area::placeholder{color:var(--text-3);font-weight:300;}
+.seed-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--glass-border);
+}
+.char-info{font-size:11.5px;font-family:var(--mono);color:var(--text-3);}
+.char-info.warn{color:#fbbf24;}
+.char-info.over{color:#f87171;}
 
-    .ctrl {
-      flex: 1 1 200px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .ctrl-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .ctrl-name {
-      font-size: 12.5px;
-      font-weight: 500;
-      color: var(--text-2);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .ctrl-name .dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      opacity: 0.5;
-    }
-    .ctrl-val {
-      font-size: 13px;
-      font-family: var(--mono);
-      font-weight: 500;
-      color: var(--accent);
-      background: var(--accent-dim);
-      border: 1px solid rgba(124,92,252,0.2);
-      border-radius: 6px;
-      padding: 1px 7px;
-      min-width: 42px;
-      text-align: center;
-    }
-    .ctrl-desc {
-      font-size: 11px;
-      color: var(--text-3);
-      line-height: 1.4;
-      font-weight: 400;
-    }
+/* pill suggestions */
+.pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;}
+.pill{
+  font-size:11.5px;padding:4px 11px;border-radius:20px;
+  background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);
+  color:#a78bfa;cursor:pointer;transition:all 0.2s;font-weight:400;
+}
+.pill:hover{background:rgba(139,92,246,0.18);border-color:rgba(139,92,246,0.32);color:#c4b5fd;}
 
-    input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 3px;
-      border-radius: 3px;
-      background: var(--surface-3);
-      outline: none;
-      cursor: pointer;
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px rgba(124,92,252,0.4);
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.2);
-      box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px rgba(124,92,252,0.5);
-    }
-    input[type="range"]::-moz-range-thumb {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      background: var(--accent);
-      border: none;
-      cursor: pointer;
-    }
+/* preset card */
+.preset-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:7px;
+}
+.preset-btn{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:12px 8px;border-radius:14px;
+  background:var(--glass-2);border:1px solid var(--glass-border);
+  cursor:pointer;transition:all 0.2s;
+  font-size:11px;color:var(--text-2);font-weight:500;
+  font-family:'Inter',sans-serif;
+}
+.preset-btn:hover{background:var(--glass-3);border-color:var(--glass-border-hover);color:var(--text-1);}
+.preset-btn.active{background:rgba(139,92,246,0.15);border-color:rgba(139,92,246,0.35);color:#c4b5fd;}
+.preset-btn.active .p-icon{color:#a78bfa;}
+.p-icon{font-size:18px;transition:transform 0.2s;}
+.preset-btn:hover .p-icon{transform:scale(1.15);}
 
-    .temp-labels {
-      display: flex;
-      justify-content: space-between;
-      margin-top: -4px;
-    }
-    .temp-labels span {
-      font-size: 10px;
-      color: var(--text-3);
-      font-family: var(--mono);
-    }
+/* controls sliders */
+.slider-group{display:flex;flex-direction:column;gap:14px;}
+.sl-row{display:flex;flex-direction:column;gap:6px;}
+.sl-hdr{display:flex;align-items:center;justify-content:space-between;}
+.sl-name{font-size:12px;font-weight:500;color:var(--text-2);}
+.sl-val{
+  font-size:12px;font-family:var(--mono);font-weight:500;
+  color:var(--accent);background:rgba(139,92,246,0.12);
+  border:1px solid rgba(139,92,246,0.20);border-radius:6px;
+  padding:1px 7px;min-width:44px;text-align:center;
+}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:3px;border-radius:3px;
+  background:rgba(255,255,255,0.08);outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px rgba(4,4,12,0.8),0 0 0 4px rgba(139,92,246,0.4);
+  cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;
+}
+input[type=range]::-webkit-slider-thumb:hover{
+  transform:scale(1.2);box-shadow:0 0 0 3px rgba(4,4,12,0.8),0 0 0 6px rgba(139,92,246,0.5);
+}
+.sl-labels{display:flex;justify-content:space-between;margin-top:-2px;}
+.sl-labels span{font-size:9.5px;color:var(--text-3);font-family:var(--mono);}
 
-    /* === Action Row === */
-    .action-row {
-      padding: 20px 28px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface);
-    }
+/* stats card */
+.stats-grid{display:flex;flex-direction:column;gap:10px;}
+.stat-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 12px;border-radius:12px;
+  background:var(--glass-2);border:1px solid var(--glass-border);
+}
+.stat-label{font-size:11.5px;color:var(--text-3);font-weight:400;}
+.stat-val{font-size:14px;font-family:var(--mono);font-weight:600;color:var(--text-1);}
+.stat-val.purple{color:#a78bfa;}
+.stat-val.cyan{color:#22d3ee;}
+.stat-val.pink{color:#f472b6;}
+.stat-val.green{color:#34d399;}
 
-    .btn-gen {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      height: 48px;
-      border: none;
-      border-radius: 12px;
-      background: var(--accent);
-      color: #fff;
-      font-family: 'Inter', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.2px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-      overflow: hidden;
-    }
-    .btn-gen::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent);
-      pointer-events: none;
-    }
-    .btn-gen:hover { background: #8e6dfd; transform: translateY(-1px); }
-    .btn-gen:active { transform: translateY(0) scale(0.99); }
-    .btn-gen:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+/* mode card */
+.mode-list{display:flex;flex-direction:column;gap:6px;}
+.mode-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 11px;border-radius:11px;
+  background:var(--glass-1);border:1px solid var(--glass-border);
+  cursor:pointer;transition:all 0.2s;font-size:12px;color:var(--text-2);
+  font-family:'Inter',sans-serif;
+}
+.mode-item:hover{background:var(--glass-2);border-color:var(--glass-border-hover);color:var(--text-1);}
+.mode-item.active{background:rgba(6,182,212,0.10);border-color:rgba(6,182,212,0.25);color:#22d3ee;}
+.mode-dot{width:7px;height:7px;border-radius:50%;background:var(--glass-3);transition:background 0.2s;flex-shrink:0;}
+.mode-item.active .mode-dot{background:#22d3ee;box-shadow:0 0 6px rgba(6,182,212,0.6);}
 
-    .btn-gen .icon { font-size: 17px; transition: transform 0.3s ease; }
-    .btn-gen:hover .icon { transform: rotate(15deg); }
-    .btn-gen .spinner {
-      display: none;
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,0.25);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.65s linear infinite;
-    }
-    .btn-gen.loading .spinner { display: inline-block; }
-    .btn-gen.loading .icon,
-    .btn-gen.loading .btn-label { display: none; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+/* action row */
+.action-row{
+  display:flex;gap:10px;align-items:center;
+  padding:16px 22px;
+  border-top:1px solid var(--glass-border);
+  background:rgba(139,92,246,0.03);
+}
+.btn-gen{
+  flex:1;height:46px;border:none;border-radius:13px;
+  background:linear-gradient(135deg,#7c3aed,#6366f1);
+  color:#fff;font-family:'Inter',sans-serif;
+  font-size:14.5px;font-weight:600;letter-spacing:0.2px;
+  cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  position:relative;overflow:hidden;
+}
+.btn-gen::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent 60%);
+  pointer-events:none;
+}
+.btn-gen:hover{background:linear-gradient(135deg,#8b5cf6,#818cf8);transform:translateY(-1px);box-shadow:0 8px 24px rgba(139,92,246,0.35);}
+.btn-gen:active{transform:translateY(0) scale(0.99);}
+.btn-gen:disabled{opacity:0.4;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
+.btn-gen .g-icon{font-size:16px;transition:transform 0.3s;}
+.btn-gen:hover .g-icon{transform:rotate(20deg) scale(1.1);}
+.spinner{
+  display:none;width:17px;height:17px;
+  border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;
+  border-radius:50%;animation:spin 0.6s linear infinite;
+}
+.btn-gen.loading .spinner{display:inline-block;}
+.btn-gen.loading .g-icon,.btn-gen.loading .g-label{display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-icon{
+  width:46px;height:46px;border-radius:13px;
+  background:var(--glass-2);border:1px solid var(--glass-border);
+  color:var(--text-2);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;flex-shrink:0;font-family:'Inter',sans-serif;
+}
+.btn-icon:hover{background:var(--glass-3);border-color:var(--glass-border-hover);color:var(--text-1);}
+.btn-icon.rand:hover{transform:rotate(90deg);}
 
-    .btn-rand {
-      width: 48px; height: 48px;
-      border-radius: 12px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      color: var(--text-2);
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      flex-shrink: 0;
-    }
-    .btn-rand:hover {
-      background: var(--surface-3);
-      border-color: var(--border-hover);
-      color: var(--text-1);
-      transform: rotate(90deg);
-    }
-    .btn-rand:active { transform: rotate(90deg) scale(0.95); }
+/* output */
+.output-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 22px 14px;
+  border-bottom:1px solid var(--glass-border);
+}
+.out-left{display:flex;align-items:center;gap:10px;}
+.out-status{
+  display:flex;align-items:center;gap:6px;
+  font-size:11.5px;color:var(--text-3);font-weight:500;
+  font-family:var(--mono);
+}
+.sdot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.15);transition:background 0.3s;}
+.sdot.ok{background:#34d399;box-shadow:0 0 6px rgba(52,211,153,0.5);animation:pulse-g 2s ease-in-out infinite;}
+.sdot.running{background:#a78bfa;box-shadow:0 0 6px rgba(167,139,250,0.5);animation:pulse-p 0.8s ease-in-out infinite;}
+@keyframes pulse-p{0%,100%{opacity:1}50%{opacity:0.5}}
+.out-actions{display:flex;gap:7px;}
+.btn-sm{
+  display:flex;align-items:center;gap:5px;
+  background:var(--glass-2);border:1px solid var(--glass-border);
+  border-radius:9px;color:var(--text-3);
+  font-size:11.5px;font-family:'Inter',sans-serif;font-weight:500;
+  padding:5px 12px;cursor:pointer;transition:all 0.2s;
+}
+.btn-sm:hover{background:var(--glass-3);border-color:var(--glass-border-hover);color:var(--text-1);}
+.btn-sm.ok{border-color:rgba(52,211,153,0.3);color:#34d399;}
+.out-body{
+  padding:22px 24px;
+  min-height:100px;
+  position:relative;
+}
 
-    /* === Output Panel === */
-    .output-panel {
-      margin-top: 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
-    }
+/* waveform */
+.waveform{
+  display:none;align-items:flex-end;gap:3px;
+  height:36px;margin-bottom:16px;
+}
+.waveform.active{display:flex;}
+.wave-bar{
+  width:3px;border-radius:2px;background:var(--accent);
+  animation:wave 1.2s ease-in-out infinite;
+  opacity:0.7;
+}
+@keyframes wave{
+  0%,100%{transform:scaleY(0.3)}
+  50%{transform:scaleY(1)}
+}
 
-    .output-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 22px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface-2);
-    }
-    .output-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .output-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.4px;
-      color: var(--text-3);
-    }
-    .status-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--surface-3);
-      transition: background 0.3s ease;
-    }
-    .status-dot.active { background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
-    @keyframes pulse-dot {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
-      50% { box-shadow: 0 0 0 4px rgba(52,211,153,0); }
-    }
+.out-text{
+  font-family:var(--mono);font-size:15px;line-height:1.9;
+  color:var(--text-2);white-space:pre-wrap;word-break:break-word;
+}
+.out-text.has-content{color:var(--text-1);animation:fadeUp 0.4s ease;}
+.out-text.placeholder{color:var(--text-3);font-style:italic;font-weight:300;font-family:'Inter',sans-serif;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.cursor-blink{
+  display:inline-block;width:2px;height:1em;
+  background:var(--accent);margin-left:2px;
+  vertical-align:text-bottom;animation:blink 1s step-end infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.out-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 22px;border-top:1px solid var(--glass-border);
+  background:rgba(139,92,246,0.02);
+}
+.out-msg{font-size:11.5px;color:var(--text-3);font-weight:400;min-height:17px;}
+.out-msg.ok{color:rgba(52,211,153,0.7);}
+.out-msg.err{color:rgba(248,113,113,0.7);}
+.out-msg.run{color:rgba(167,139,250,0.8);}
+.out-words{font-size:11px;font-family:var(--mono);color:var(--text-3);}
 
-    .btn-copy {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-3);
-      font-size: 12px;
-      font-family: 'Inter', sans-serif;
-      font-weight: 500;
-      padding: 5px 12px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn-copy:hover {
-      background: var(--surface-3);
-      border-color: var(--border-hover);
-      color: var(--text-1);
-    }
-    .btn-copy.copied { border-color: rgba(52,211,153,0.3); color: var(--green); }
+/* history card */
+.hist-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;}
+.hist-list::-webkit-scrollbar{width:4px;}
+.hist-list::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.2);border-radius:4px;}
+.hist-item{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 14px;border-radius:13px;
+  background:var(--glass-1);border:1px solid var(--glass-border);
+  cursor:pointer;transition:all 0.2s;
+}
+.hist-item:hover{background:var(--glass-2);border-color:var(--glass-border-hover);}
+.hist-seed{font-size:11.5px;color:var(--text-3);font-weight:500;font-family:var(--mono);margin-bottom:4px;}
+.hist-preview{font-size:12.5px;color:var(--text-2);line-height:1.5;font-family:var(--mono);}
+.hist-meta{
+  margin-left:auto;flex-shrink:0;
+  font-size:10.5px;color:var(--text-3);font-family:var(--mono);text-align:right;
+}
 
-    .output-body {
-      padding: 24px 28px;
-      min-height: 110px;
-      display: flex;
-      align-items: flex-start;
-    }
-    .output-text {
-      font-family: var(--mono);
-      font-size: 15.5px;
-      line-height: 1.85;
-      color: var(--text-2);
-      white-space: pre-wrap;
-      word-break: break-word;
-      flex: 1;
-    }
-    .output-text.has-content { color: var(--text-1); animation: fadeSlideIn 0.4s ease; }
-    .output-text.placeholder { color: var(--text-3); font-style: italic; font-weight: 300; }
-    @keyframes fadeSlideIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .cursor {
-      display: inline-block;
-      width: 2px; height: 1.1em;
-      background: var(--accent);
-      margin-left: 2px;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-    }
-    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+/* accent liquid glass glow on focused card */
+.cell-seed.focused .gc{border-color:rgba(139,92,246,0.28);box-shadow:0 0 0 1px rgba(139,92,246,0.08),inset 0 0 40px rgba(139,92,246,0.04);}
 
-    .output-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 22px;
-      border-top: 1px solid var(--border);
-      background: var(--surface-2);
-    }
-    .status-msg {
-      font-size: 12px;
-      color: var(--text-3);
-      font-weight: 400;
-      min-height: 18px;
-      transition: color 0.2s ease;
-    }
-    .status-msg.ok { color: rgba(52,211,153,0.6); }
-    .status-msg.error { color: rgba(248,113,113,0.6); }
-    .status-msg.running { color: rgba(124,92,252,0.7); }
+/* footer */
+.app-footer{
+  text-align:center;font-size:11px;color:var(--text-3);
+  padding:4px 0 0;letter-spacing:0.3px;
+}
 
-    .word-stat {
-      font-size: 11.5px;
-      font-family: var(--mono);
-      color: var(--text-3);
-    }
-
-    /* === Footer === */
-    .app-footer {
-      margin-top: 20px;
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-3);
-      padding: 0 4px;
-    }
-
-    /* === Seed suggestions === */
-    .suggestions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 0 28px 18px;
-    }
-    .sug {
-      font-size: 12px;
-      padding: 4px 11px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      color: var(--text-3);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 400;
-    }
-    .sug:hover {
-      background: var(--surface-3);
-      border-color: rgba(124,92,252,0.3);
-      color: var(--text-2);
-    }
-
-    @media (max-width: 600px) {
-      body { padding: 20px 12px; }
-      .section { padding: 18px 18px; }
-      .controls-section { padding: 16px 18px; flex-direction: column; gap: 16px; }
-      .ctrl { flex: 1 1 auto; }
-      .action-row { padding: 16px 18px; }
-      .output-body { padding: 18px 18px; }
-      .suggestions { padding: 0 18px 14px; }
-      .output-header, .output-footer { padding: 12px 16px; }
-      textarea { font-size: 15px; }
-      .output-text { font-size: 14.5px; }
-    }
-
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(124,92,252,0.25); border-radius: 10px; }
-  </style>
+@media(max-width:680px){
+  .bento{grid-template-columns:1fr 1fr;}
+  .cell-seed{grid-column:1/3;}
+  .cell-preset{grid-column:1/3;grid-row:2;}
+  .cell-controls{grid-column:1/2;grid-row:3;}
+  .cell-stats{grid-column:2/3;grid-row:3;}
+  .cell-mode{grid-column:1/3;grid-row:4;}
+  .cell-output{grid-column:1/3;grid-row:5;}
+  .cell-history{grid-column:1/3;grid-row:6;}
+  .hdr-badges .b-live{display:none;}
+}
+@media(max-width:480px){
+  .bento{grid-template-columns:1fr;}
+  .cell-seed,.cell-preset,.cell-controls,.cell-stats,.cell-mode,.cell-output,.cell-history{grid-column:1/2;}
+  .app{padding:20px 14px 32px;}
+}
+</style>
 </head>
 <body>
 
-  <div class="wrap">
+<div class="ambient">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+<div class="grid-bg"></div>
+<div class="top-line"></div>
 
-    <!-- Header -->
-    <header class="header">
-      <div class="header-left">
-        <div class="wordmark">
-          <div class="logo-mark" aria-hidden="true"></div>
-          <h1>Neural Muse</h1>
-        </div>
-        <p class="tagline">Recurrent neural network · creative text generation</p>
+<div class="app">
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="11" cy="11" r="8" stroke="#a78bfa" stroke-width="1.5" opacity="0.7"/>
+          <circle cx="11" cy="11" r="4" stroke="#22d3ee" stroke-width="1.5" opacity="0.8"/>
+          <circle cx="11" cy="11" r="1.5" fill="#ec4899"/>
+          <path d="M11 3v2M11 17v2M3 11h2M17 11h2" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+        </svg>
       </div>
-      <div class="badge-row">
-        <span class="badge badge-model">Simple RNN</span>
-        <span class="badge badge-rnn">v1.0</span>
+      <div class="brand-text">
+        <h1>Guardian Text</h1>
+        <p>by Psycho Mods · Neural language engine</p>
       </div>
-    </header>
+    </div>
+    <div class="hdr-badges">
+      <span class="hdr-badge b-purple">RNN v2</span>
+      <span class="hdr-badge b-cyan">Advanced</span>
+      <span class="hdr-badge b-live"><span class="live-dot"></span>Live</span>
+    </div>
+  </header>
 
-    <!-- Main Panel -->
-    <main class="panel" role="main">
-      <form id="genForm" method="POST">
+  <!-- Bento Grid -->
+  <div class="bento">
 
-        <!-- Seed Input -->
-        <div class="section">
-          <div class="section-label">
-            <span>Seed phrase</span>
-            <span class="char-count" id="charCount">0 / 120</span>
+    <!-- SEED CARD -->
+    <div class="cell-seed" id="cellSeed">
+      <div class="gc">
+        <div class="card-pad" style="padding-bottom:12px;">
+          <div class="card-label">
+            <span class="licon licon-purple">✦</span>
+            Seed Phrase
           </div>
-          <textarea
-            name="text"
-            id="seedInput"
-            placeholder="Start with a fragment — a word, a thought, a whisper…"
-            required
-            maxlength="120"
-            autofocus
-            rows="3"
-          >Psycho</textarea>
-        </div>
-
-        <!-- Quick-seed suggestions -->
-        <div class="suggestions" id="suggestions">
-          <button type="button" class="sug" data-seed="I am interested in">I am interested in…</button>
-          <button type="button" class="sug" data-seed="Artificial intelligence is">Artificial intelligence is…</button>
-          <button type="button" class="sug" data-seed="Building projects helps me">Building projects…</button>
-          <button type="button" class="sug" data-seed="Creating technology projects">Creating technology project…</button>
-          <button type="button" class="sug" data-seed="The future of technology">The future of technology…</button>
-        </div>
-
-        <!-- Controls -->
-        <div class="controls-section">
-          <div class="ctrl">
-            <div class="ctrl-header">
-              <span class="ctrl-name">
-                <span class="dot" aria-hidden="true"></span>
-                Temperature
-              </span>
-              <span class="ctrl-val" id="tempDisplay">0.80</span>
-            </div>
-            <input type="range" name="temperature" id="tempSlider" min="0.1" max="1.8" step="0.05" value="0.8" aria-label="Temperature" />
-            <div class="temp-labels">
-              <span>Focused</span>
-              <span>Balanced</span>
-              <span>Wild</span>
-            </div>
-            <p class="ctrl-desc">Lower = predictable & coherent · higher = surprising & creative</p>
+          <textarea class="seed-area" id="seedInput" maxlength="120" placeholder="Start with a fragment — a word, a thought, a whisper…" rows="3">The neural network began to</textarea>
+          <div class="pills" id="pills">
+            <button class="pill" data-s="The stars began to">Stars began…</button>
+            <button class="pill" data-s="Deep within the machine">Machine depths…</button>
+            <button class="pill" data-s="She whispered to the void">She whispered…</button>
+            <button class="pill" data-s="Artificial dreams emerge from">AI dreams…</button>
+            <button class="pill" data-s="At the edge of tomorrow">Tomorrow's edge…</button>
+            <button class="pill" data-s="The last signal came from">Last signal…</button>
           </div>
-
-          <div class="ctrl">
-            <div class="ctrl-header">
-              <span class="ctrl-name">
-                <span class="dot" aria-hidden="true"></span>
-                Output length
-              </span>
-              <span class="ctrl-val" id="wordsDisplay">20 w</span>
-            </div>
-            <input type="range" name="word_count" id="wordsSlider" min="3" max="60" step="1" value="20" aria-label="Word count" />
-            <div class="temp-labels">
-              <span>3</span>
-              <span>30</span>
-              <span>60</span>
-            </div>
-            <p class="ctrl-desc">Number of words the model will generate after your seed</p>
+          <div class="seed-footer">
+            <span class="char-info" id="charInfo">22 / 120</span>
+            <button class="btn-sm" id="btnRand" title="Random seed">↺ Shuffle</button>
           </div>
         </div>
-
-        <!-- Action Row -->
         <div class="action-row">
-          <button type="button" class="btn-rand" id="btnRand" title="Shuffle to a random seed" aria-label="Pick random seed">
-            ↺
+          <button class="btn-gen" id="genBtn">
+            <span class="g-icon">✦</span>
+            <span class="g-label">Generate Text</span>
+            <span class="spinner"></span>
           </button>
-          <button type="submit" class="btn-gen" id="genBtn">
-            <span class="icon" aria-hidden="true">✦</span>
-            <span class="btn-label">Generate text</span>
-            <span class="spinner" aria-hidden="true"></span>
-          </button>
+          <button class="btn-icon" id="btnHistory" title="Toggle history">⎙</button>
+          <button class="btn-icon" id="btnClearSeed" title="Clear seed">✕</button>
         </div>
-
-      </form>
-    </main>
-
-    <!-- Output Panel -->
-    <div class="output-panel" id="outputPanel" aria-live="polite" aria-atomic="true">
-      <div class="output-header">
-        <div class="output-header-left">
-          <div class="status-dot" id="statusDot" aria-hidden="true"></div>
-          <span class="output-label">Generated text</span>
-        </div>
-        <button class="btn-copy" id="copyBtn" aria-label="Copy generated text to clipboard">
-          <span id="copyIcon">⎘</span>
-          <span id="copyLabel">Copy</span>
-        </button>
-      </div>
-
-      <div class="output-body">
-        <div class="output-text {% if output %}has-content{% else %}placeholder{% endif %}" id="outputDisplay">
-          {% if output %}{{ output }}{% else %}Your generated text will appear here…<span class="cursor" aria-hidden="true"></span>{% endif %}
-        </div>
-      </div>
-
-      <div class="output-footer">
-        <span class="status-msg {% if output %}ok{% endif %}" id="statusMsg">
-          {% if output %}✓ Generation complete{% endif %}
-        </span>
-        <span class="word-stat" id="wordStat"></span>
       </div>
     </div>
 
-    <footer class="app-footer">
-      Neural Muse &mdash; Simple RNN · creative text generation
-    </footer>
+    <!-- PRESET CARD -->
+    <div class="cell-preset">
+      <div class="gc" style="height:100%;">
+        <div class="card-pad">
+          <div class="card-label">
+            <span class="licon licon-pink">⬡</span>
+            Presets
+          </div>
+          <div class="preset-grid" id="presetGrid">
+            <button class="preset-btn active" data-t="0.80" data-w="20" data-seed="Once upon a time in a world">
+              <span class="p-icon">📖</span>Story
+            </button>
+            <button class="preset-btn" data-t="1.20" data-w="30" data-seed="In the twilight of existence">
+              <span class="p-icon">🎭</span>Poetry
+            </button>
+            <button class="preset-btn" data-t="0.50" data-w="15" data-seed="The function returns">
+              <span class="p-icon">💻</span>Code
+            </button>
+            <button class="preset-btn" data-t="0.90" data-w="25" data-seed="Let me tell you about">
+              <span class="p-icon">💬</span>Chat
+            </button>
+            <button class="preset-btn" data-t="1.50" data-w="40" data-seed="In a galaxy far beyond">
+              <span class="p-icon">🌌</span>Sci-Fi
+            </button>
+            <button class="preset-btn" data-t="0.65" data-w="12" data-seed="Breaking: Scientists discover">
+              <span class="p-icon">📰</span>News
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  </div>
+    <!-- CONTROLS CARD -->
+    <div class="cell-controls">
+      <div class="gc" style="height:100%;">
+        <div class="card-pad">
+          <div class="card-label">
+            <span class="licon licon-cyan">⚙</span>
+            Parameters
+          </div>
+          <div class="slider-group">
+            <div class="sl-row">
+              <div class="sl-hdr">
+                <span class="sl-name">Temperature</span>
+                <span class="sl-val" id="tempDisp">0.80</span>
+              </div>
+              <input type="range" id="tempSlider" min="0.1" max="1.8" step="0.05" value="0.8"/>
+              <div class="sl-labels"><span>Focused</span><span>Balanced</span><span>Wild</span></div>
+            </div>
+            <div class="sl-row">
+              <div class="sl-hdr">
+                <span class="sl-name">Output Length</span>
+                <span class="sl-val" id="wordsDisp">20 w</span>
+              </div>
+              <input type="range" id="wordsSlider" min="3" max="60" step="1" value="20"/>
+              <div class="sl-labels"><span>3</span><span>30</span><span>60</span></div>
+            </div>
+            <div class="sl-row">
+              <div class="sl-hdr">
+                <span class="sl-name">Top-P Nucleus</span>
+                <span class="sl-val" id="topPDisp">0.90</span>
+              </div>
+              <input type="range" id="topPSlider" min="0.1" max="1.0" step="0.05" value="0.9"/>
+              <div class="sl-labels"><span>Narrow</span><span>Broad</span><span>Max</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <script>
-  (function () {
-    const form       = document.getElementById('genForm');
-    const seedInput  = document.getElementById('seedInput');
-    const charCount  = document.getElementById('charCount');
-    const tempSlider = document.getElementById('tempSlider');
-    const tempDisp   = document.getElementById('tempDisplay');
-    const wordsSlider= document.getElementById('wordsSlider');
-    const wordsDisp  = document.getElementById('wordsDisplay');
-    const genBtn     = document.getElementById('genBtn');
-    const copyBtn    = document.getElementById('copyBtn');
-    const copyIcon   = document.getElementById('copyIcon');
-    const copyLabel  = document.getElementById('copyLabel');
-    const outputDisp = document.getElementById('outputDisplay');
-    const statusMsg  = document.getElementById('statusMsg');
-    const statusDot  = document.getElementById('statusDot');
-    const wordStat   = document.getElementById('wordStat');
-    const btnRand    = document.getElementById('btnRand');
+    <!-- STATS CARD -->
+    <div class="cell-stats">
+      <div class="gc" style="height:100%;">
+        <div class="card-pad">
+          <div class="card-label">
+            <span class="licon licon-green">◉</span>
+            Session Stats
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">Generations</span>
+              <span class="stat-val purple" id="statGens">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total Words</span>
+              <span class="stat-val cyan" id="statWords">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Avg Temp</span>
+              <span class="stat-val pink" id="statTemp">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Last Run</span>
+              <span class="stat-val green" id="statLast">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    const seeds = [
-      "The stars began to",
-      "In the deep forest",
-      "She opened the letter and",
-      "Once the machine learned to",
-      "At the edge of the",
-      "The last signal came from",
-      "When the ocean finally spoke",
-      "He remembered the name but not",
-      "A single light moved through",
-      "Long after the city fell"
-    ];
+    <!-- MODE CARD -->
+    <div class="cell-mode">
+      <div class="gc" style="height:100%;">
+        <div class="card-pad">
+          <div class="card-label">
+            <span class="licon licon-amber">◈</span>
+            Output Mode
+          </div>
+          <div class="mode-list" id="modeList">
+            <div class="mode-item active" data-mode="standard">
+              <span class="mode-dot"></span>Standard
+            </div>
+            <div class="mode-item" data-mode="streaming">
+              <span class="mode-dot"></span>Streaming
+            </div>
+            <div class="mode-item" data-mode="batch">
+              <span class="mode-dot"></span>Batch ×3
+            </div>
+            <div class="mode-item" data-mode="compare">
+              <span class="mode-dot"></span>Compare
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    function updateCharCount() {
-      const len = seedInput.value.length;
-      charCount.textContent = len + ' / 120';
-      charCount.classList.remove('warn','danger');
-      if (len > 96) charCount.classList.add('warn');
-      if (len > 115) charCount.classList.add('danger');
-    }
+    <!-- OUTPUT CARD -->
+    <div class="cell-output">
+      <div class="gc">
+        <div class="output-hdr">
+          <div class="out-left">
+            <div class="out-status">
+              <span class="sdot" id="sdot"></span>
+              <span id="sdotLabel">Ready</span>
+            </div>
+            <span style="color:var(--glass-border);font-size:12px;">|</span>
+            <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-3);">Generated Output</span>
+          </div>
+          <div class="out-actions">
+            <button class="btn-sm" id="btnCopy">⎘ Copy</button>
+            <button class="btn-sm" id="btnRegen" title="Regenerate">↺ Again</button>
+            <button class="btn-sm" id="btnSave" title="Save to history">⊕ Save</button>
+          </div>
+        </div>
+        <div class="out-body">
+          <div class="waveform" id="waveform">
+            <!-- bars injected by JS -->
+          </div>
+          <div class="out-text placeholder" id="outText">Your generated text will appear here…<span class="cursor-blink"></span></div>
+        </div>
+        <div class="out-footer">
+          <span class="out-msg" id="outMsg"></span>
+          <span class="out-words" id="outWords"></span>
+        </div>
+      </div>
+    </div>
 
-    function updateWordStat() {
-      const text = outputDisp.textContent.replace(/\s+$/, '');
-      if (text && !outputDisp.classList.contains('placeholder')) {
-        const wc = text.trim().split(/\s+/).filter(Boolean).length;
-        wordStat.textContent = wc + ' words';
-      } else {
-        wordStat.textContent = '';
-      }
-    }
+    <!-- HISTORY CARD -->
+    <div class="cell-history" id="histCell">
+      <div class="gc">
+        <div class="card-pad" style="padding-bottom:16px;">
+          <div class="card-label" style="margin-bottom:12px;">
+            <span class="licon licon-purple">⌛</span>
+            Generation History
+            <span id="histCount" style="margin-left:auto;font-size:10px;color:var(--accent);font-family:var(--mono);">0 entries</span>
+          </div>
+          <div class="hist-list" id="histList">
+            <div style="text-align:center;padding:20px;color:var(--text-3);font-size:12.5px;font-style:italic;">
+              No history yet — generate something first!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    seedInput.addEventListener('input', function () {
-      updateCharCount();
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-    });
+  </div><!-- /bento -->
 
-    tempSlider.addEventListener('input', function () {
-      tempDisp.textContent = parseFloat(this.value).toFixed(2);
-    });
+  <footer class="app-footer">
+    Guardian Text · Psycho Mods — Simple RNN · Creative Language Engine
+  </footer>
 
-    wordsSlider.addEventListener('input', function () {
-      wordsDisp.textContent = this.value + ' w';
-    });
+</div>
 
-    document.querySelectorAll('.sug').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        seedInput.value = this.dataset.seed;
-        seedInput.dispatchEvent(new Event('input'));
-        seedInput.focus();
-      });
-    });
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const seedInput=$('seedInput'), charInfo=$('charInfo'), tempSlider=$('tempSlider'),
+    wordsSlider=$('wordsSlider'), topPSlider=$('topPSlider'),
+    tempDisp=$('tempDisp'), wordsDisp=$('wordsDisp'), topPDisp=$('topPDisp'),
+    genBtn=$('genBtn'), outText=$('outText'), outMsg=$('outMsg'),
+    outWords=$('outWords'), sdot=$('sdot'), sdotLabel=$('sdotLabel'),
+    btnCopy=$('btnCopy'), btnRegen=$('btnRegen'), btnSave=$('btnSave'),
+    btnRand=$('btnRand'), btnHistory=$('btnHistory'), btnClearSeed=$('btnClearSeed'),
+    histCell=$('histCell'), histList=$('histList'), histCount=$('histCount'),
+    waveform=$('waveform'),
+    statGens=$('statGens'), statWords=$('statWords'), statTemp=$('statTemp'), statLast=$('statLast');
 
-    btnRand.addEventListener('click', function () {
-      const pick = seeds[Math.floor(Math.random() * seeds.length)];
-      seedInput.value = pick;
-      seedInput.dispatchEvent(new Event('input'));
-      seedInput.focus();
-    });
+  // session state
+  let totalGens=0, totalWordCount=0, totalTemp=0, history=[], currentMode='standard';
 
-form.addEventListener('submit', async function (e) {
-
-  e.preventDefault();
-
-  const text = seedInput.value.trim();
-
-  if (!text) {
-    statusMsg.className = 'status-msg error';
-    statusMsg.textContent = 'Please enter some text.';
-    return;
+  // waveform bars
+  const BARS=14;
+  for(let i=0;i<BARS;i++){
+    const b=document.createElement('div');
+    b.className='wave-bar';
+    b.style.animationDelay=(i*0.08)+'s';
+    b.style.height=(12+Math.random()*20)+'px';
+    waveform.appendChild(b);
   }
 
-  genBtn.classList.add('loading');
-  genBtn.disabled = true;
+  const randoms=[
+    "The stars began to","In the deep forest","Once the machine learned to",
+    "At the edge of the","She opened the letter and","When the ocean finally spoke",
+    "He remembered the name but not","A single light moved through",
+    "Long after the city fell","The guardian algorithm woke",
+    "Neural patterns emerged from chaos","Beyond the digital horizon"
+  ];
 
-  statusDot.classList.remove('active');
+  function updateChar(){
+    const n=seedInput.value.length;
+    charInfo.textContent=n+' / 120';
+    charInfo.className='char-info';
+    if(n>96)charInfo.className='char-info warn';
+    if(n>115)charInfo.className='char-info over';
+  }
 
-  statusMsg.className = 'status-msg running';
-  statusMsg.textContent = '⏳ Generating...';
+  function updateStats(){
+    statGens.textContent=totalGens;
+    statWords.textContent=totalWordCount;
+    statTemp.textContent=totalGens>0?(totalTemp/totalGens).toFixed(2)+'°':'—';
+    const now=new Date();
+    statLast.textContent=totalGens>0?now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0'):'—';
+  }
 
-  try {
+  function countWords(t){
+    return t.trim().split(/\s+/).filter(Boolean).length;
+  }
 
-    const response = await fetch(
-      'https://psychomods-guardian-text.hf.space/generate',
-      {
-        method: 'POST',
+  function setOutput(text,isPlaceholder){
+    if(isPlaceholder){
+      outText.className='out-text placeholder';
+      outText.innerHTML=text+'<span class="cursor-blink"></span>';
+    }else{
+      outText.className='out-text has-content';
+      outText.textContent=text;
+      const wc=countWords(text);
+      outWords.textContent=wc+' words · '+text.length+' chars';
+    }
+  }
 
-        headers: {
-          'Content-Type': 'application/json'
-        },
+  function setStatus(state,msg){
+    outMsg.className='out-msg';
+    sdot.className='sdot';
+    if(state==='ok'){outMsg.className='out-msg ok';sdot.className='sdot ok';sdotLabel.textContent='Complete';}
+    else if(state==='run'){outMsg.className='out-msg run';sdot.className='sdot running';sdotLabel.textContent='Generating…';}
+    else if(state==='err'){outMsg.className='out-msg err';sdotLabel.textContent='Error';}
+    else{sdotLabel.textContent='Ready';}
+    outMsg.textContent=msg||'';
+  }
 
-        body: JSON.stringify({
-          text: text,
-          temperature: parseFloat(tempSlider.value),
-          word_count: parseInt(wordsSlider.value)
+  seedInput.addEventListener('input',function(){
+    updateChar();
+    this.style.height='auto';
+    this.style.height=Math.min(this.scrollHeight,140)+'px';
+  });
+
+  tempSlider.addEventListener('input',()=>tempDisp.textContent=parseFloat(tempSlider.value).toFixed(2));
+  wordsSlider.addEventListener('input',()=>wordsDisp.textContent=wordsSlider.value+' w');
+  topPSlider.addEventListener('input',()=>topPDisp.textContent=parseFloat(topPSlider.value).toFixed(2));
+
+  // pills
+  document.getElementById('pills').addEventListener('click',e=>{
+    const b=e.target.closest('.pill');
+    if(!b)return;
+    seedInput.value=b.dataset.s;
+    seedInput.dispatchEvent(new Event('input'));
+    seedInput.focus();
+  });
+
+  // presets
+  document.getElementById('presetGrid').addEventListener('click',e=>{
+    const b=e.target.closest('.preset-btn');
+    if(!b)return;
+    document.querySelectorAll('.preset-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    if(b.dataset.t){tempSlider.value=b.dataset.t;tempDisp.textContent=parseFloat(b.dataset.t).toFixed(2);}
+    if(b.dataset.w){wordsSlider.value=b.dataset.w;wordsDisp.textContent=b.dataset.w+' w';}
+    if(b.dataset.seed){seedInput.value=b.dataset.seed;seedInput.dispatchEvent(new Event('input'));}
+    seedInput.focus();
+  });
+
+  // modes
+  document.getElementById('modeList').addEventListener('click',e=>{
+    const m=e.target.closest('.mode-item');
+    if(!m)return;
+    document.querySelectorAll('.mode-item').forEach(x=>x.classList.remove('active'));
+    m.classList.add('active');
+    currentMode=m.dataset.mode;
+  });
+
+  // random
+  btnRand.addEventListener('click',()=>{
+    seedInput.value=randoms[Math.floor(Math.random()*randoms.length)];
+    seedInput.dispatchEvent(new Event('input'));
+    seedInput.focus();
+  });
+
+  // clear seed
+  btnClearSeed.addEventListener('click',()=>{
+    seedInput.value='';
+    seedInput.dispatchEvent(new Event('input'));
+    seedInput.focus();
+  });
+
+  // history toggle
+  btnHistory.addEventListener('click',()=>{
+    histCell.classList.toggle('visible');
+  });
+
+  async function doGenerate(){
+    const txt=seedInput.value.trim();
+    if(!txt){setStatus('err','Please enter a seed phrase.');return;}
+    genBtn.classList.add('loading');genBtn.disabled=true;
+    waveform.classList.add('active');
+    setStatus('run','⏳ Running neural pass…');
+    setOutput('Generating…',true);
+    try{
+      const res=await fetch('https://psychomods-guardian-text.hf.space/generate',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          text:txt,
+          temperature:parseFloat(tempSlider.value),
+          word_count:parseInt(wordsSlider.value)
         })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Server Error');
+      });
+      if(!res.ok)throw new Error('Server error '+res.status);
+      const data=await res.json();
+      const gen=data.generated_text||'';
+      setOutput(gen,false);
+      setStatus('ok','✓ Generation complete');
+      // stats
+      totalGens++;
+      totalWordCount+=countWords(gen);
+      totalTemp+=parseFloat(tempSlider.value);
+      updateStats();
+      // save to history auto
+      addHistory(txt,gen);
+    }catch(err){
+      setStatus('err','Backend error — check server connection.');
+      setOutput('Unable to reach the Guardian Text server. Please try again.',false);
+    }finally{
+      genBtn.classList.remove('loading');genBtn.disabled=false;
+      waveform.classList.remove('active');
     }
-
-    const data = await response.json();
-
-    outputDisp.textContent = data.generated_text;
-
-    outputDisp.classList.remove('placeholder');
-    outputDisp.classList.add('has-content');
-
-    statusDot.classList.add('active');
-
-    statusMsg.className = 'status-msg ok';
-    statusMsg.textContent = '✓ Generation complete';
-
-    updateWordStat();
-
-  } catch (error) {
-
-    console.error(error);
-
-    statusMsg.className = 'status-msg error';
-    statusMsg.textContent = 'Backend server error';
-
-    outputDisp.textContent =
-      'Unable to connect to the AI server. Please try again.';
-
-    outputDisp.classList.remove('placeholder');
-    outputDisp.classList.add('has-content');
   }
 
-  genBtn.classList.remove('loading');
-  genBtn.disabled = false;
-});
+  genBtn.addEventListener('click',doGenerate);
+  btnRegen.addEventListener('click',doGenerate);
 
-    copyBtn.addEventListener('click', function () {
-      const text = outputDisp.textContent.replace(/\s+$/, '');
-      if (!text || outputDisp.classList.contains('placeholder')) {
-        statusMsg.className = 'status-msg error';
-        statusMsg.textContent = 'Nothing to copy yet.';
-        setTimeout(function() {
-          statusMsg.className = 'status-msg';
-          statusMsg.textContent = '';
-        }, 2000);
-        return;
-      }
-      navigator.clipboard.writeText(text).then(function() {
-        copyIcon.textContent = '✓';
-        copyLabel.textContent = 'Copied!';
-        copyBtn.classList.add('copied');
-        setTimeout(function() {
-          copyIcon.textContent = '⎘';
-          copyLabel.textContent = 'Copy';
-          copyBtn.classList.remove('copied');
-        }, 2000);
-      }).catch(function() {
-        const r = document.createRange();
-        r.selectNode(outputDisp);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(r);
-        try { document.execCommand('copy'); } catch(e) {}
-        window.getSelection().removeAllRanges();
-        copyIcon.textContent = '✓';
-        copyLabel.textContent = 'Copied!';
-        copyBtn.classList.add('copied');
-        setTimeout(function() {
-          copyIcon.textContent = '⎘';
-          copyLabel.textContent = 'Copy';
-          copyBtn.classList.remove('copied');
-        }, 2000);
+  // save button
+  btnSave.addEventListener('click',()=>{
+    const t=outText.textContent;
+    if(!t||outText.classList.contains('placeholder')){setStatus('err','Nothing to save.');return;}
+    addHistory(seedInput.value.trim(),t);
+    btnSave.textContent='✓ Saved';btnSave.classList.add('ok');
+    setTimeout(()=>{btnSave.textContent='⊕ Save';btnSave.classList.remove('ok');},1800);
+  });
+
+  function addHistory(seed,text){
+    history.unshift({seed,text,t:parseFloat(tempSlider.value),w:parseInt(wordsSlider.value),ts:new Date()});
+    if(history.length>20)history.pop();
+    renderHistory();
+  }
+
+  function renderHistory(){
+    histCount.textContent=history.length+' entries';
+    if(history.length===0){
+      histList.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:12.5px;font-style:italic;">No history yet.</div>';
+      return;
+    }
+    histList.innerHTML='';
+    history.forEach((h,i)=>{
+      const d=document.createElement('div');
+      d.className='hist-item';
+      const preview=h.text.length>80?h.text.slice(0,80)+'…':h.text;
+      const time=h.ts.getHours().toString().padStart(2,'0')+':'+h.ts.getMinutes().toString().padStart(2,'0');
+      d.innerHTML=`<div style="flex:1;min-width:0;">
+        <div class="hist-seed">${h.seed.slice(0,40)}${h.seed.length>40?'…':''}</div>
+        <div class="hist-preview">${preview}</div>
+      </div>
+      <div class="hist-meta">${time}<br>T:${h.t.toFixed(1)}<br>${h.w}w</div>`;
+      d.addEventListener('click',()=>{
+        setOutput(h.text,false);
+        setStatus('ok','Loaded from history');
+        outWords.textContent=countWords(h.text)+' words';
       });
+      histList.appendChild(d);
     });
+  }
 
-    window.addEventListener('load', function () {
-      updateCharCount();
-      seedInput.style.height = 'auto';
-      seedInput.style.height = Math.min(seedInput.scrollHeight, 160) + 'px';
+  // copy
+  btnCopy.addEventListener('click',()=>{
+    const t=outText.textContent;
+    if(!t||outText.classList.contains('placeholder')){setStatus('err','Nothing to copy.');return;}
+    navigator.clipboard.writeText(t).then(()=>{
+      btnCopy.textContent='✓ Copied';btnCopy.classList.add('ok');
+      setTimeout(()=>{btnCopy.textContent='⎘ Copy';btnCopy.classList.remove('ok');},1800);
+    }).catch(()=>{});
+  });
 
-      if (genBtn.classList.contains('loading')) {
-        genBtn.classList.remove('loading');
-        genBtn.disabled = false;
-      }
-
-      const outText = outputDisp.textContent.trim();
-      const hasReal = outText && !outputDisp.classList.contains('placeholder')
-        && outText !== 'Your generated text will appear here…';
-
-      if (hasReal) {
-        outputDisp.classList.add('has-content');
-        outputDisp.classList.remove('placeholder');
-        const cur = outputDisp.querySelector('.cursor');
-        if (cur) cur.remove();
-        statusDot.classList.add('active');
-        statusMsg.className = 'status-msg ok';
-        statusMsg.textContent = '✓ Generation complete';
-        updateWordStat();
-      } else {
-        if (!outputDisp.querySelector('.cursor')) {
-          const s = document.createElement('span');
-          s.className = 'cursor';
-          s.setAttribute('aria-hidden','true');
-          outputDisp.appendChild(s);
-        }
-      }
-    });
-  })();
-  </script>
+  // init
+  updateChar();
+  seedInput.style.height='auto';
+  seedInput.style.height=Math.min(seedInput.scrollHeight,140)+'px';
+  updateStats();
+})();
+</script>
 </body>
 </html>
