@@ -9,7 +9,16 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 app = Flask(__name__)
 
-CORS(app)
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": "*"
+        }
+    }
+)
+
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 model = tf.keras.models.load_model(
     "simple_rnn_model.h5"
